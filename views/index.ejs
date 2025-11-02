@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Traffic Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --light-color: #ecf0f1;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --dark-color: #2c3e50;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f6fa;
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        header h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .panel h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light-color);
+        }
+        
+        /* Traffic Network Visualization */
+        #traffic-network {
+            height: 500px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        
+        .intersection {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .intersection:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+        }
+        
+        .intersection.signal-red { background-color: var(--danger-color); }
+        .intersection.signal-green { background-color: var(--success-color); }
+        .intersection.signal-yellow { background-color: var(--warning-color); }
+        
+        .road {
+            position: absolute;
+            height: 4px;
+            background-color: #7f8c8d;
+            transform-origin: 0 50%;
+            z-index: 1;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .road:hover {
+            background-color: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+        }
+        
+        .road-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -100%);
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .road::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--secondary-color);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+        
+        .road.traffic-low::after { 
+            transform: scaleX(0.3); 
+            background-color: var(--success-color);
+        }
+        
+        .road.traffic-medium::after { 
+            transform: scaleX(0.6); 
+            background-color: var(--warning-color);
+        }
+        
+        .road.traffic-high::after { 
+            transform: scaleX(1); 
+            background-color: var(--danger-color);
+        }
+        
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .control-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .control-group h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .control-group h3 i {
+            color: var(--secondary-color);
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-block {
+            display: block;
+            width: 100%;
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+        }
+        
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+        
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        
+        /* Status Indicators */
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-active { background-color: var(--success-color); }
+        .status-inactive { background-color: #95a5a6; }
+        
+        /* Route Info */
+        #route-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid var(--secondary-color);
+            display: none;
+        }
+        
+        #route-info h3 {
+            margin-bottom: 10px;
+            color: var(--primary-color);
+        }
+        
+        .route-segment {
+            padding: 8px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid var(--secondary-color);
+            font-size: 14px;
+        }
+        
+        .route-segment .segment-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        
+        .traffic-badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+        }
+        
+        .traffic-low { background-color: var(--success-color); }
+        .traffic-medium { background-color: var(--warning-color); }
+        .traffic-high { background-color: var(--danger-color); }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            #traffic-network {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1><i class="fas fa-traffic-light"></i> City Traffic Management System</h1>
+            <p style="text-align: center; opacity: 0.8;">Monitor and manage city traffic in real-time</p>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="dashboard">
+            <div class="panel">
+                <h2><i class="fas fa-project-diagram"></i> Traffic Network</h2>
+                <div id="traffic-network">
+                    <!-- Intersections and roads will be rendered here by JavaScript -->
+                </div>
+                
+                <div id="route-info">
+                    <h3><i class="fas fa-route"></i> Route Information</h3>
+                    <div id="route-details"></div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2><i class="fas fa-sliders-h"></i> Controls</h2>
+                
+                <div class="controls">
+                    <div class="control-group">
+                        <h3><i class="fas fa-map-marker-alt"></i> Find Route</h3>
+                        <div class="form-group">
+                            <label for="from-intersection">From:</label>
+                            <select id="from-intersection" class="form-control">
+                                <option value="">Select starting point</option>
+                                <% intersections.forEach(intersection => { %>
+                                    <option value="<%= intersection.id %>">
+                                        <%= intersection.name %> (<%= intersection.id %>)
+                                    </option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="to-intersection">To:</label>
+                            <select id="to-intersection" class="form-control">
+                                <option value="">Select destination</option>
+                                <% intersections.forEach(intersection => { %>
+                                    <option value="<%= intersection.id %>">
+                                        <%= intersection.name %> (<%= intersection.id %>)
+                                    </option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <button id="find-route" class="btn btn-block">
+                            <i class="fas fa-route"></i> Find Best Route
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3><i class="fas fa-plus-circle"></i> Add Intersection</h3>
+                        <div class="form-group">
+                            <label for="intersection-id">ID:</label>
+                            <input type="text" id="intersection-id" class="form-control" placeholder="e.g., E">
+                        </div>
+                        <div class="form-group">
+                            <label for="intersection-name">Name:</label>
+                            <input type="text" id="intersection-name" class="form-control" placeholder="e.g., East District">
+                        </div>
+                        <button id="add-intersection" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Add Intersection
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3><i class="fas fa-road"></i> Add Road</h3>
+                        <div class="form-group">
+                            <label for="road-from">From:</label>
+                            <select id="road-from" class="form-control">
+                                <option value="">Select starting intersection</option>
+                                <% intersections.forEach(intersection => { %>
+                                    <option value="<%= intersection.id %>">
+                                        <%= intersection.name %> (<%= intersection.id %>)
+                                    </option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="road-to">To:</label>
+                            <select id="road-to" class="form-control">
+                                <option value="">Select destination intersection</option>
+                                <% intersections.forEach(intersection => { %>
+                                    <option value="<%= intersection.id %>">
+                                        <%= intersection.name %> (<%= intersection.id %>)
+                                    </option>
+                                <% }); %>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="road-distance">Distance (km):</label>
+                            <input type="number" id="road-distance" class="form-control" min="0.1" step="0.1" value="1.0">
+                        </div>
+                        <button id="add-road" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Add Road
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <h3><i class="fas fa-traffic-light"></i> Traffic Simulation</h3>
+                        <p>Traffic updates every 5 seconds</p>
+                        <div class="form-group">
+                            <label>Traffic Density Legend:</label>
+                            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                <span class="traffic-badge traffic-low">Light</span>
+                                <span class="traffic-badge traffic-medium">Moderate</span>
+                                <span class="traffic-badge traffic-high">Heavy</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Signal Status:</label>
+                            <div style="display: flex; gap: 15px; margin-top: 5px;">
+                                <div>
+                                    <span class="status-indicator" style="background-color: #2ecc71;"></span>
+                                    <span>Green</span>
+                                </div>
+                                <div>
+                                    <span class="status-indicator" style="background-color: #f39c12;"></span>
+                                    <span>Yellow</span>
+                                </div>
+                                <div>
+                                    <span class="status-indicator" style="background-color: #e74c3c;"></span>
+                                    <span>Red</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        // Global variables
+        let networkData = {
+            intersections: <%- JSON.stringify(intersections) %>,
+            roads: <%- JSON.stringify(roads) %>
+        };
+        
+        // Create tooltip element
+        const roadTooltip = document.createElement('div');
+        roadTooltip.className = 'road-tooltip';
+        document.getElementById('traffic-network').appendChild(roadTooltip);
+            
+        // Initialize the traffic network visualization
+        function initNetwork() {
+            const container = document.getElementById('traffic-network');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            // Clear existing elements
+            container.innerHTML = '';
+            
+            // Re-add the tooltip after clearing
+            container.appendChild(roadTooltip);
+            
+            // Create intersections
+            networkData.intersections.forEach((intersection, index) => {
+                // Distribute intersections in a circle for visualization
+                const angle = (index / networkData.intersections.length) * Math.PI * 2;
+                const radius = Math.min(width, height) * 0.4;
+                const x = (width / 2) + Math.cos(angle) * radius;
+                const y = (height / 2) + Math.sin(angle) * radius;
+                
+                const el = document.createElement('div');
+                el.className = `intersection signal-${intersection.signalStatus.toLowerCase()}`;
+                el.textContent = intersection.id;
+                el.style.left = `${x - 15}px`;
+                el.style.top = `${y - 15}px`;
+                el.title = `${intersection.name} (${intersection.id})\nSignal: ${intersection.signalStatus}`;
+                
+                container.appendChild(el);
+                
+                // Store position for road drawing
+                intersection.x = x;
+                intersection.y = y;
+            });
+            
+            // Create roads
+            networkData.roads.forEach(road => {
+                const fromIntersection = networkData.intersections.find(i => i.id === road.from);
+                const toIntersection = networkData.intersections.find(i => i.id === road.to);
+                
+                if (fromIntersection && toIntersection) {
+                    const dx = toIntersection.x - fromIntersection.x;
+                    const dy = toIntersection.y - fromIntersection.y;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    
+                    const roadEl = document.createElement('div');
+                    roadEl.className = 'road';
+                    roadEl.style.width = `${length}px`;
+                    roadEl.style.left = `${fromIntersection.x}px`;
+                    roadEl.style.top = `${fromIntersection.y}px`;
+                    roadEl.style.transform = `rotate(${angle}deg)`;
+                    
+                    // Add data attributes for tooltip
+                    roadEl.dataset.distance = road.distance;
+                    roadEl.dataset.from = road.from;
+                    roadEl.dataset.to = road.to;
+                    
+                    // Add hover events for tooltip
+                    roadEl.addEventListener('mousemove', (e) => {
+                        const rect = roadEl.getBoundingClientRect();
+                        const networkRect = container.getBoundingClientRect();
+                        
+                        // Calculate position for tooltip (middle of the road)
+                        const midX = (rect.left + rect.right) / 2 - networkRect.left + container.scrollLeft;
+                        const midY = (rect.top + rect.bottom) / 2 - networkRect.top + container.scrollTop;
+                        
+                        roadTooltip.textContent = `${road.distance} KM (${road.from} to ${road.to})`;
+                        roadTooltip.style.left = `${midX}px`;
+                        roadTooltip.style.top = `${midY - 10}px`;
+                        roadTooltip.style.opacity = '1';
+                    });
+                    
+                    roadEl.addEventListener('mouseenter', () => {
+                        roadTooltip.style.opacity = '1';
+                    });
+                    
+                    roadEl.addEventListener('mouseleave', () => {
+                        roadTooltip.style.opacity = '0';
+                    });
+                    
+                    // Set traffic class based on density
+                    if (road.trafficDensity < 0.3) {
+                        roadEl.classList.add('traffic-low');
+                    } else if (road.trafficDensity < 0.7) {
+                        roadEl.classList.add('traffic-medium');
+                    } else {
+                        roadEl.classList.add('traffic-high');
+                    }
+                    
+                    // Add tooltip with road info
+                    roadEl.title = `${road.from} to ${road.to}\n` +
+                                 `Distance: ${road.distance} km\n` +
+                                 `Traffic: ${(road.trafficDensity * 100).toFixed(0)}%`;
+                    
+                    container.insertBefore(roadEl, container.firstChild);
+                }
+            });
+        }
+        
+        // Update network data from server
+        function updateNetwork(data) {
+            networkData = data;
+            initNetwork();
+        }
+        
+        // Find and display route
+        async function findRoute() {
+            const from = document.getElementById('from-intersection').value;
+            const to = document.getElementById('to-intersection').value;
+            
+            if (!from || !to) {
+                alert('Please select both starting point and destination');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/route?from=${from}&to=${to}`);
+                const route = await response.json();
+                
+                if (route.error) {
+                    throw new Error(route.error);
+                }
+                
+                // Display route information
+                const routeInfo = document.getElementById('route-info');
+                const routeDetails = document.getElementById('route-details');
+                
+                routeInfo.style.display = 'block';
+                
+                let html = `
+                    <p><strong>From:</strong> ${route.from}<br>
+                    <strong>To:</strong> ${route.to}<br>
+                    <strong>Total Distance:</strong> ${route.totalDistance.toFixed(1)} km</p>
+                    <p><strong>Route:</strong> ${route.path.join(' → ')}</p>
+                    <h4>Route Segments:</h4>
+                `;
+                
+                route.segments.forEach(segment => {
+                    const trafficClass = segment.trafficStatus.toLowerCase();
+                    html += `
+                        <div class="route-segment">
+                            <div class="segment-header">
+                                <span>${segment.from} → ${segment.to}</span>
+                                <span class="traffic-badge ${trafficClass}">
+                                    ${segment.trafficStatus} Traffic
+                                </span>
+                            </div>
+                            <div>
+                                <strong>Distance:</strong> ${segment.distance} km • 
+                                <strong>Signal:</strong> 
+                                <span style="color: ${segment.signalStatus === 'green' ? '#2ecc71' : segment.signalStatus === 'yellow' ? '#f39c12' : '#e74c3c'}">
+                                    ${segment.signalStatus}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                routeDetails.innerHTML = html;
+                
+                // Scroll to route info
+                routeInfo.scrollIntoView({ behavior: 'smooth' });
+                
+            } catch (error) {
+                alert('Error finding route: ' + error.message);
+                console.error('Route error:', error);
+            }
+        }
+        
+        // Add intersection
+        async function addIntersection() {
+            const id = document.getElementById('intersection-id').value.trim();
+            const name = document.getElementById('intersection-name').value.trim();
+            
+            if (!id || !name) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/intersection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id, name })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Intersection added successfully');
+                    document.getElementById('intersection-id').value = '';
+                    document.getElementById('intersection-name').value = '';
+                    
+                    // Reload the page to update the UI
+                    window.location.reload();
+                } else {
+                    throw new Error(result.error || 'Failed to add intersection');
+                }
+            } catch (error) {
+                alert('Error adding intersection: ' + error.message);
+                console.error('Add intersection error:', error);
+            }
+        }
+        
+        // Add road
+        async function addRoad() {
+            const from = document.getElementById('road-from').value;
+            const to = document.getElementById('road-to').value;
+            const distance = parseFloat(document.getElementById('road-distance').value);
+            
+            if (!from || !to || isNaN(distance) || distance <= 0) {
+                alert('Please fill in all fields with valid values');
+                return;
+            }
+            
+            if (from === to) {
+                alert('Cannot create a road from an intersection to itself');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/road', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ from, to, distance })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Road added successfully');
+                    // Reload the page to update the UI
+                    window.location.reload();
+                } else {
+                    throw new Error(result.error || 'Failed to add road');
+                }
+            } catch (error) {
+                alert('Error adding road: ' + error.message);
+                console.error('Add road error:', error);
+            }
+        }
+        
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize the network visualization
+            initNetwork();
+            
+            // Set up event listeners
+            document.getElementById('find-route').addEventListener('click', findRoute);
+            document.getElementById('add-intersection').addEventListener('click', addIntersection);
+            document.getElementById('add-road').addEventListener('click', addRoad);
+            
+            // Handle Enter key in input fields
+            document.getElementById('intersection-id').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addIntersection();
+            });
+            
+            document.getElementById('intersection-name').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addIntersection();
+            });
+            
+            document.getElementById('road-distance').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addRoad();
+            });
+        });
+        
+        // Listen for network updates from the server
+        socket.on('network-update', (data) => {
+            updateNetwork(data);
+        });
+        
+        // Handle window resize
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(initNetwork, 200);
+        });
+    </script>
+</body>
+</html>
