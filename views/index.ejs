@@ -113,7 +113,21 @@
             z-index: 1;
             cursor: pointer;
             transition: all 0.2s;
+            overflow: visible;
         }
+        
+        .vehicle {
+            position: absolute;
+            font-size: 16px;
+            z-index: 5;
+            transform: translate(-50%, -50%);
+            transition: left 0.5s linear, top 0.5s linear;
+            pointer-events: none;
+        }
+        
+        .vehicle.low { color: #2ecc71; }
+        .vehicle.medium { color: #f39c12; }
+        .vehicle.high { color: #e74c3c; }
         
         .road:hover {
             background-color: #3498db;
@@ -463,6 +477,9 @@
             roads: <%- JSON.stringify(roads) %>
         };
         
+        // Store road elements for vehicle positioning
+        const roadElements = new Map();
+        
         // Create tooltip element
         const roadTooltip = document.createElement('div');
         roadTooltip.className = 'road-tooltip';
@@ -520,6 +537,9 @@
                     roadEl.style.top = `${fromIntersection.y}px`;
                     roadEl.style.transform = `rotate(${angle}deg)`;
                     
+                    // Store road element in the map
+                    roadElements.set(`${road.from}-${road.to}`, roadEl);
+                    
                     // Add data attributes for tooltip
                     roadEl.dataset.distance = road.distance;
                     roadEl.dataset.from = road.from;
@@ -567,10 +587,124 @@
             });
         }
         
+        // Vehicle management
+        const vehicles = new Map();
+        
+        function createVehicle(roadId, position, density) {
+            const vehicle = document.createElement('div');
+            vehicle.className = 'vehicle';
+            vehicle.textContent = '🚗';
+            
+            // Set initial class based on density
+            updateVehicleDensity(vehicle, density);
+            
+            document.getElementById('traffic-network').appendChild(vehicle);
+            vehicles.set(roadId, { element: vehicle, position, density });
+            return vehicle;
+        }
+        
+        function updateVehicleDensity(vehicle, density) {
+            vehicle.className = 'vehicle ' + 
+                (density > 0.7 ? 'high' : density > 0.4 ? 'medium' : 'low');
+        }
+        
+        function updateVehiclePositions(roads) {
+            roads.forEach(road => {
+                const roadElement = roadElements.get(`${road.from}-${road.to}`) || 
+                                  roadElements.get(`${road.to}-${road.from}`);
+                
+                if (roadElement) {
+                    const fromNode = networkData.intersections.find(i => i.id === road.from);
+                    const toNode = networkData.intersections.find(i => i.id === road.to);
+                    
+                    if (fromNode && toNode) {
+                        const roadLength = Math.sqrt(
+                            Math.pow(toNode.x - fromNode.x, 2) + 
+                            Math.pow(toNode.y - fromNode.y, 2)
+                        );
+                        
+                        // Calculate number of vehicles based on traffic density
+                        const vehicleCount = Math.min(5, Math.ceil(road.trafficDensity * 5));
+                        
+                        // Update or create vehicles
+                        for (let i = 0; i < vehicleCount; i++) {
+                            const vehicleId = `${road.from}-${road.to}-${i}`;
+                            const position = (Math.sin(Date.now() / 2000 + i) + 1) / 2; // Oscillating position
+                            
+                            if (!vehicles.has(vehicleId)) {
+                                createVehicle(vehicleId, position, road.trafficDensity);
+                            }
+                            
+                            const vehicle = vehicles.get(vehicleId);
+                            vehicle.position = position;
+                            vehicle.density = road.trafficDensity;
+                            
+                            // Update vehicle position
+                            const x = fromNode.x + (toNode.x - fromNode.x) * position;
+                            const y = fromNode.y + (toNode.y - fromNode.y) * position;
+                            
+                            // Add slight offset to prevent overlapping
+                            const offsetX = (toNode.y - fromNode.y) / roadLength * 15 * (i % 2 ? 1 : -1);
+                            const offsetY = (fromNode.x - toNode.x) / roadLength * 15 * (i % 2 ? 1 : -1);
+                            
+                            vehicle.element.style.left = `${x + offsetX}px`;
+                            vehicle.element.style.top = `${y + offsetY}px`;
+                            
+                            // Update vehicle rotation based on road direction
+                            const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x) * 180 / Math.PI;
+                            vehicle.element.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+                            
+                            // Update vehicle density class if changed
+                            updateVehicleDensity(vehicle.element, road.trafficDensity);
+                        }
+                    }
+                }
+            });
+            
+            // Remove excess vehicles
+            const currentIds = new Set(roads.flatMap(road => {
+                const vehicleCount = Math.min(5, Math.ceil(road.trafficDensity * 5));
+                return Array.from({length: vehicleCount}, (_, i) => `${road.from}-${road.to}-${i}`);
+            }));
+            
+            // Remove vehicles that are no longer needed
+            for (const [id, vehicle] of vehicles.entries()) {
+                if (!currentIds.has(id)) {
+                    vehicle.element.remove();
+                    vehicles.delete(id);
+                }
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            if (networkData && networkData.roads) {
+                updateVehiclePositions(networkData.roads);
+            }
+            requestAnimationFrame(animate);
+        }
+        
+        // Start the animation loop
+        animate();
+        
         // Update network data from server
         function updateNetwork(data) {
+            // Store the previous network data for comparison
+            const previousData = { ...networkData };
             networkData = data;
+            
+            // Reinitialize the network visualization
             initNetwork();
+            
+            // If we have roads data, update vehicle positions
+            if (networkData.roads && networkData.roads.length > 0) {
+                updateVehiclePositions(networkData.roads);
+            }
+            
+            // If this is the first update after page load, ensure vehicles are shown
+            if (!previousData.roads && networkData.roads) {
+                updateVehiclePositions(networkData.roads);
+            }
         }
         
         // Find and display route
@@ -714,15 +848,14 @@
             }
         }
         
-        // Event Listeners
+        // Initialize the network when the page loads
         document.addEventListener('DOMContentLoaded', () => {
-            // Initialize the network visualization
             initNetwork();
             
-            // Set up event listeners
-            document.getElementById('find-route').addEventListener('click', findRoute);
-            document.getElementById('add-intersection').addEventListener('click', addIntersection);
-            document.getElementById('add-road').addEventListener('click', addRoad);
+            // Start with some traffic
+            if (networkData && networkData.roads) {
+                updateVehiclePositions(networkData.roads);
+            }
             
             // Handle Enter key in input fields
             document.getElementById('intersection-id').addEventListener('keypress', (e) => {

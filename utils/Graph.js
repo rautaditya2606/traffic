@@ -108,40 +108,70 @@ class Graph {
         return distances[end] !== Infinity ? path : null;
     }
 
-    // Automatically adjust traffic signals based on traffic density
+    // Track the current green signal and timing
     autoAdjustSignals() {
         const now = Date.now();
-        const SIGNAL_CYCLE = 60000; // 1 minute cycle
+        const GREEN_TIME = 10000; // 10 seconds per signal
         
-        this.intersections.forEach((intersection, id) => {
-            const timeInCycle = (now - intersection.lastChange) % SIGNAL_CYCLE;
+        // Find the currently green signal
+        let currentGreen = null;
+        for (const [id, intersection] of this.intersections.entries()) {
+            if (intersection.signalStatus === 'green') {
+                currentGreen = id;
+                break;
+            }
+        }
+        // If no signal is green, make the first one green
+        if (!currentGreen && this.intersections.size > 0) {
+            const firstId = this.intersections.keys().next().value;
+            this.intersections.get(firstId).signalStatus = 'green';
+            this.intersections.get(firstId).lastChange = now;
+            this.intersections.get(firstId).lastIndex = 0;
+            return;
+        }
+        
+        // Check if it's time to switch to the next signal
+        if (currentGreen) {
+            const currentIntersection = this.intersections.get(currentGreen);
+            const timeGreen = now - currentIntersection.lastChange;
             
-            // If it's time to change the signal
-            if (timeInCycle < 1000) { // Check every second
-                // Simple logic: if most incoming roads have high traffic, keep green longer
-                let totalDensity = 0;
-                let count = 0;
-                
-                // Check all incoming roads
+            if (timeGreen >= GREEN_TIME) {
+                // Find all adjacent intersections
+                const adjacent = [];
                 for (const [from, neighbors] of this.adjacencyList.entries()) {
-                    if (neighbors.has(id)) {
-                        totalDensity += neighbors.get(id).trafficDensity;
-                        count++;
+                    if (neighbors.has(currentGreen)) {
+                        adjacent.push(from);
+                    }
+                    if (from === currentGreen) {
+                        for (const to of neighbors.keys()) {
+                            adjacent.push(to);
+                        }
                     }
                 }
                 
-                const avgDensity = count > 0 ? totalDensity / count : 0;
+                // Filter out duplicates and the current green
+                const uniqueAdjacent = [...new Set(adjacent)].filter(id => id !== currentGreen);
                 
-                // Change signal if needed
-                if (intersection.signalStatus === 'red' && avgDensity > 0.5) {
-                    intersection.signalStatus = 'green';
-                    intersection.lastChange = now;
-                } else if (intersection.signalStatus === 'green' && avgDensity < 0.3) {
-                    intersection.signalStatus = 'red';
-                    intersection.lastChange = now;
+                // If there are adjacent intersections, pick the next one
+                if (uniqueAdjacent.length > 0) {
+                    // Initialize lastIndex if it doesn't exist
+                    if (typeof currentIntersection.lastIndex === 'undefined') {
+                        currentIntersection.lastIndex = -1;
+                    }
+                    
+                    // Find the next intersection in a round-robin fashion
+                    const nextIndex = (currentIntersection.lastIndex + 1) % uniqueAdjacent.length;
+                    const nextGreen = uniqueAdjacent[nextIndex];
+                    
+                    // Update states
+                    currentIntersection.signalStatus = 'red';
+                    const nextIntersection = this.intersections.get(nextGreen);
+                    nextIntersection.signalStatus = 'green';
+                    nextIntersection.lastChange = now;
+                    nextIntersection.lastIndex = nextIndex;
                 }
             }
-        });
+        }
     }
 
     // Get all intersections and roads for API responses
