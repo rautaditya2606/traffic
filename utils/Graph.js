@@ -4,14 +4,13 @@ class Graph {
         this.intersections = new Map();
     }
 
-    // Add a new intersection (node) to the graph
     addNode(id, name) {
         if (!this.adjacencyList.has(id)) {
             this.adjacencyList.set(id, new Map());
             this.intersections.set(id, {
                 id,
                 name,
-                signalStatus: 'red', // default signal status
+                signalStatus: 'red', 
                 lastChange: Date.now()
             });
             return true;
@@ -19,16 +18,14 @@ class Graph {
         return false;
     }
 
-    // Add a road (edge) between two intersections
     addEdge(from, to, distance) {
         if (!this.adjacencyList.has(from) || !this.adjacencyList.has(to)) {
             return false;
         }
         
-        // Add bidirectional connection
         this.adjacencyList.get(from).set(to, { 
             distance: parseInt(distance),
-            trafficDensity: 0, // initial traffic density
+            trafficDensity: 0
             lastUpdated: Date.now()
         });
         
@@ -41,18 +38,16 @@ class Graph {
         return true;
     }
 
-    // Update traffic density for a road
     updateTraffic(from, to, density) {
         if (this.adjacencyList.has(from) && this.adjacencyList.get(from).has(to)) {
             const road = this.adjacencyList.get(from).get(to);
-            road.trafficDensity = Math.min(1, Math.max(0, parseFloat(density))); // Ensure density is between 0 and 1
+            road.trafficDensity = Math.min(1, Math.max(0, parseFloat(density)));
             road.lastUpdated = Date.now();
             return true;
         }
         return false;
     }
 
-    // Get the shortest path using Dijkstra's algorithm with traffic consideration
     getShortestPathDijkstra(start, end) {
         if (!this.adjacencyList.has(start) || !this.adjacencyList.has(end)) {
             return null;
