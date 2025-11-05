@@ -116,6 +116,21 @@
             overflow: visible;
         }
         
+        .road.highlighted {
+            background-color: #2980b9;
+            height: 6px;
+            box-shadow: 0 0 8px rgba(41, 128, 185, 0.7);
+        }
+        
+        .route-vehicle {
+            position: absolute;
+            font-size: 22px;
+            z-index: 20;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.25));
+        }
+        
         .vehicle {
             position: absolute;
             font-size: 16px;
@@ -765,9 +780,123 @@
                 // Scroll to route info
                 routeInfo.scrollIntoView({ behavior: 'smooth' });
                 
+                // Highlight the roads on the selected route
+                // First, clear any previous highlights
+                document.querySelectorAll('#traffic-network .road.highlighted').forEach(el => {
+                    el.classList.remove('highlighted');
+                });
+                
+                // Add highlight to each segment's road (either direction)
+                route.segments.forEach(segment => {
+                    const keyForward = `${segment.from}-${segment.to}`;
+                    const keyBackward = `${segment.to}-${segment.from}`;
+                    const el = roadElements.get(keyForward) || roadElements.get(keyBackward);
+                    if (el) el.classList.add('highlighted');
+                });
+                
+                // Start the route vehicle animation
+                startRouteAnimation(route);
+                
             } catch (error) {
                 alert('Error finding route: ' + error.message);
                 console.error('Route error:', error);
+            }
+        }
+
+        // Route animation state
+        let routeVehicleEl = null;
+        let cancelRouteAnimation = null;
+
+        function getIntersectionById(id) {
+            return networkData.intersections.find(i => i.id === id);
+        }
+
+        function getRoadData(from, to) {
+            return networkData.roads.find(r => (r.from === from && r.to === to) || (r.from === to && r.to === from));
+        }
+
+        function createOrGetRouteVehicle(container) {
+            if (routeVehicleEl) return routeVehicleEl;
+            const el = document.createElement('div');
+            el.className = 'route-vehicle';
+            el.textContent = '🚗';
+            container.appendChild(el);
+            routeVehicleEl = el;
+            return el;
+        }
+
+        function setVehiclePosition(el, fromNode, toNode, t) {
+            const x = fromNode.x + (toNode.x - fromNode.x) * t;
+            const y = fromNode.y + (toNode.y - fromNode.y) * t;
+            const angle = Math.atan2(toNode.y - fromNode.y, toNode.x - fromNode.x) * 180 / Math.PI;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+        }
+
+        // Animate a single segment from -> to and resolve when done
+        function animateSegment(el, fromId, toId, durationMs, signal) {
+            const fromNode = getIntersectionById(fromId);
+            const toNode = getIntersectionById(toId);
+            if (!fromNode || !toNode) return Promise.resolve();
+            
+            return new Promise((resolve) => {
+                const start = performance.now();
+                let rafId;
+                
+                function frame(now) {
+                    // cancellation support
+                    if (signal?.aborted) {
+                        cancelAnimationFrame(rafId);
+                        return;
+                    }
+                    const elapsed = now - start;
+                    const t = Math.max(0, Math.min(1, elapsed / durationMs));
+                    // ease in-out for smoothness
+                    const eased = 0.5 - 0.5 * Math.cos(Math.PI * t);
+                    setVehiclePosition(el, fromNode, toNode, eased);
+                    if (t < 1) {
+                        rafId = requestAnimationFrame(frame);
+                    } else {
+                        resolve();
+                    }
+                }
+                
+                rafId = requestAnimationFrame(frame);
+            });
+        }
+
+        async function startRouteAnimation(route) {
+            const container = document.getElementById('traffic-network');
+            const vehicle = createOrGetRouteVehicle(container);
+            
+            // cancel previous animation if any
+            if (cancelRouteAnimation) cancelRouteAnimation.abort();
+            const controller = new AbortController();
+            cancelRouteAnimation = controller;
+            
+            // If no segments, position at start and return
+            if (!route.segments || route.segments.length === 0) {
+                const startNode = getIntersectionById(route.from);
+                if (startNode) setVehiclePosition(vehicle, startNode, startNode, 0);
+                return;
+            }
+            
+            // Place vehicle at the start of the first segment
+            const firstFrom = route.segments[0].from;
+            const firstTo = route.segments[0].to;
+            const firstFromNode = getIntersectionById(firstFrom);
+            const firstToNode = getIntersectionById(firstTo);
+            if (firstFromNode && firstToNode) setVehiclePosition(vehicle, firstFromNode, firstToNode, 0);
+            
+            // Move across each segment
+            for (const seg of route.segments) {
+                if (controller.signal.aborted) break;
+                const road = getRoadData(seg.from, seg.to);
+                const trafficFactor = road ? (1 + (road.trafficDensity || 0) * 2) : 1;
+                // Base 1200ms per km feels snappy; scale by traffic
+                const durationMs = Math.max(400, (seg.distance || 1) * 1200 * trafficFactor);
+                await animateSegment(vehicle, seg.from, seg.to, durationMs, controller.signal);
             }
         }
         
@@ -869,6 +998,13 @@
             document.getElementById('road-distance').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') addRoad();
             });
+            
+            // Bind Find Route button
+            document.getElementById('find-route').addEventListener('click', findRoute);
+            // Bind Add Intersection button
+            document.getElementById('add-intersection').addEventListener('click', addIntersection);
+            // Bind Add Road button
+            document.getElementById('add-road').addEventListener('click', addRoad);
         });
         
         // Listen for network updates from the server

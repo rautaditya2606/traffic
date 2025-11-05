@@ -25,7 +25,7 @@ class Graph {
         
         this.adjacencyList.get(from).set(to, { 
             distance: parseInt(distance),
-            trafficDensity: 0
+            trafficDensity: 0,
             lastUpdated: Date.now()
         });
         
