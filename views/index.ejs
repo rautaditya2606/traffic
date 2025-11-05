@@ -495,6 +495,19 @@
         // Store road elements for vehicle positioning
         const roadElements = new Map();
         
+        // Vehicle management - only for traffic density vehicles (now disabled)
+        const vehicles = new Map();
+        
+        // Remove all traffic density vehicles
+        function removeAllTrafficVehicles() {
+            for (const [id, vehicle] of vehicles.entries()) {
+                if (vehicle && vehicle.element && vehicle.element.parentNode) {
+                    vehicle.element.remove();
+                }
+                vehicles.delete(id);
+            }
+        }
+        
         // Create tooltip element
         const roadTooltip = document.createElement('div');
         roadTooltip.className = 'road-tooltip';
@@ -506,11 +519,19 @@
             const width = container.clientWidth;
             const height = container.clientHeight;
             
+            // Remove all traffic density vehicles before clearing
+            removeAllTrafficVehicles();
+            
             // Clear existing elements
             container.innerHTML = '';
             
             // Re-add the tooltip after clearing
             container.appendChild(roadTooltip);
+            
+            // Re-add route vehicle if it exists (it will be recreated by animation if needed)
+            if (routeVehicleEl && routeVehicleEl.parentNode !== container) {
+                container.appendChild(routeVehicleEl);
+            }
             
             // Create intersections
             networkData.intersections.forEach((intersection, index) => {
@@ -602,9 +623,7 @@
             });
         }
         
-        // Vehicle management
-        const vehicles = new Map();
-        
+        // Vehicle management functions (kept for reference but not used - traffic vehicles disabled)
         function createVehicle(roadId, position, density) {
             const vehicle = document.createElement('div');
             vehicle.className = 'vehicle';
@@ -691,16 +710,16 @@
             }
         }
         
-        // Animation loop
-        function animate() {
-            if (networkData && networkData.roads) {
-                updateVehiclePositions(networkData.roads);
-            }
-            requestAnimationFrame(animate);
-        }
+        // Animation loop - DISABLED: Only route vehicle shows now
+        // function animate() {
+        //     if (networkData && networkData.roads) {
+        //         updateVehiclePositions(networkData.roads);
+        //     }
+        //     requestAnimationFrame(animate);
+        // }
         
-        // Start the animation loop
-        animate();
+        // Start the animation loop - DISABLED
+        // animate();
         
         // Update network data from server
         function updateNetwork(data) {
@@ -711,15 +730,17 @@
             // Reinitialize the network visualization
             initNetwork();
             
-            // If we have roads data, update vehicle positions
-            if (networkData.roads && networkData.roads.length > 0) {
-                updateVehiclePositions(networkData.roads);
-            }
+            // Remove all traffic density vehicles - only route vehicle shows now
+            removeAllTrafficVehicles();
             
-            // If this is the first update after page load, ensure vehicles are shown
-            if (!previousData.roads && networkData.roads) {
-                updateVehiclePositions(networkData.roads);
-            }
+            // DISABLED: No longer showing vehicles based on traffic density
+            // if (networkData.roads && networkData.roads.length > 0) {
+            //     updateVehiclePositions(networkData.roads);
+            // }
+            
+            // if (!previousData.roads && networkData.roads) {
+            //     updateVehiclePositions(networkData.roads);
+            // }
         }
         
         // Find and display route
@@ -816,10 +837,18 @@
         }
 
         function createOrGetRouteVehicle(container) {
-            if (routeVehicleEl) return routeVehicleEl;
+            if (routeVehicleEl) {
+                // Make sure it's visible and in the container
+                routeVehicleEl.style.display = 'block';
+                if (routeVehicleEl.parentNode !== container) {
+                    container.appendChild(routeVehicleEl);
+                }
+                return routeVehicleEl;
+            }
             const el = document.createElement('div');
             el.className = 'route-vehicle';
             el.textContent = '🚗';
+            el.style.display = 'none'; // Hidden initially
             container.appendChild(el);
             routeVehicleEl = el;
             return el;
@@ -869,6 +898,9 @@
         async function startRouteAnimation(route) {
             const container = document.getElementById('traffic-network');
             const vehicle = createOrGetRouteVehicle(container);
+            
+            // Make sure vehicle is visible
+            vehicle.style.display = 'block';
             
             // cancel previous animation if any
             if (cancelRouteAnimation) cancelRouteAnimation.abort();
@@ -981,10 +1013,11 @@
         document.addEventListener('DOMContentLoaded', () => {
             initNetwork();
             
-            // Start with some traffic
-            if (networkData && networkData.roads) {
-                updateVehiclePositions(networkData.roads);
-            }
+            // DISABLED: No longer showing vehicles based on traffic density
+            // Only route vehicle (from Dijkstra path) will be shown
+            // if (networkData && networkData.roads) {
+            //     updateVehiclePositions(networkData.roads);
+            // }
             
             // Handle Enter key in input fields
             document.getElementById('intersection-id').addEventListener('keypress', (e) => {
