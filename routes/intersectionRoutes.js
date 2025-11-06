@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-module.exports = (trafficGraph) => {
+module.exports = (trafficGraph, saveAndEmitNetworkUpdate) => {
     // Get all intersections
     router.get('/', (req, res) => {
         const network = trafficGraph.getNetworkData();
@@ -19,6 +19,11 @@ module.exports = (trafficGraph) => {
         const success = trafficGraph.addNode(id, name);
         
         if (success) {
+            // Save data and emit socket update if callback is provided
+            if (saveAndEmitNetworkUpdate) {
+                saveAndEmitNetworkUpdate();
+            }
+            
             res.status(201).json({
                 message: 'Intersection added successfully',
                 intersection: trafficGraph.intersections.get(id)
@@ -83,6 +88,11 @@ module.exports = (trafficGraph) => {
         
         // Remove the intersection
         trafficGraph.intersections.delete(id);
+        
+        // Save data and emit socket update if callback is provided
+        if (saveAndEmitNetworkUpdate) {
+            saveAndEmitNetworkUpdate();
+        }
         
         res.json({ message: 'Intersection deleted successfully' });
     });

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-module.exports = (trafficGraph) => {
+module.exports = (trafficGraph, saveAndEmitNetworkUpdate) => {
     // Get all roads
     router.get('/', (req, res) => {
         const network = trafficGraph.getNetworkData();
@@ -33,6 +33,11 @@ module.exports = (trafficGraph) => {
         const success = trafficGraph.addEdge(from, to, distance);
         
         if (success) {
+            // Save data and emit socket update if callback is provided
+            if (saveAndEmitNetworkUpdate) {
+                saveAndEmitNetworkUpdate();
+            }
+            
             res.status(201).json({
                 message: 'Road added successfully',
                 road: { from, to, distance, trafficDensity: 0 }
@@ -100,6 +105,11 @@ module.exports = (trafficGraph) => {
         // Remove the road (both directions since it's undirected)
         fromNode.delete(to);
         toNode.delete(from);
+        
+        // Save data and emit socket update if callback is provided
+        if (saveAndEmitNetworkUpdate) {
+            saveAndEmitNetworkUpdate();
+        }
         
         res.json({ 
             message: 'Road deleted successfully' 

@@ -28,26 +28,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-// Routes
-app.use('/api/intersection', intersectionRoutes(trafficGraph));
-app.use('/api/road', roadRoutes(trafficGraph));
-app.use('/api/traffic', trafficRoutes(trafficGraph));
-app.use('/api/route', routeRoutes(trafficGraph));
-
-// Serve the main dashboard
-app.get('/', (req, res) => {
-    const network = trafficGraph.getNetworkData();
-    res.render('index', { 
-        intersections: network.intersections,
-        roads: network.roads
-    });
-});
-
-// API endpoint to get current network data
-app.get('/api/network', (req, res) => {
-    res.json(trafficGraph.getNetworkData());
-});
-
 // Socket.IO connection
 io.on('connection', (socket) => {
     console.log('New client connected');
@@ -67,6 +47,32 @@ const saveData = () => {
         JSON.stringify(trafficGraph.getNetworkData(), null, 2)
     );
 };
+
+// Function to save and emit network update
+const saveAndEmitNetworkUpdate = () => {
+    saveData();
+    io.emit('network-update', trafficGraph.getNetworkData());
+};
+
+// Routes (must be after saveAndEmitNetworkUpdate is defined)
+app.use('/api/intersection', intersectionRoutes(trafficGraph, saveAndEmitNetworkUpdate));
+app.use('/api/road', roadRoutes(trafficGraph, saveAndEmitNetworkUpdate));
+app.use('/api/traffic', trafficRoutes(trafficGraph));
+app.use('/api/route', routeRoutes(trafficGraph));
+
+// Serve the main dashboard
+app.get('/', (req, res) => {
+    const network = trafficGraph.getNetworkData();
+    res.render('index', { 
+        intersections: network.intersections,
+        roads: network.roads
+    });
+});
+
+// API endpoint to get current network data
+app.get('/api/network', (req, res) => {
+    res.json(trafficGraph.getNetworkData());
+});
 
 // Load data from db.json if it exists
 const loadData = () => {
